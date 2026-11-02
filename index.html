@@ -519,7 +519,7 @@ function render() {
   for (const s of STATES) { $('c-' + s).textContent = n[s]; svg.getElementById('n-' + s).textContent = n[s]; }
   $('l-verkocht').textContent = lists.verkocht.join(', ') || '–';
   $('l-optie').textContent = lists.optie.join(', ') || '–';
-    svg.getElementById('stand').textContent = 'Stand per ' + fmt(new Date());
+    stamp();
   $('sub').textContent = lastChange ? 'Laatste wijziging: ' + lastChange.toLocaleString('nl-NL', {day:'numeric', month:'long', hour:'2-digit', minute:'2-digit'}) : "Actuele beschikbaarheid van de 54 villa's.";
   if (current) openSheet(current);
   if (typeof applyFilter === 'function') applyFilter();
@@ -578,10 +578,13 @@ $('pinform').onsubmit = async e => {
   $('pinok').disabled = false;
 };
 
-function fileDate() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+const pad = n => String(n).padStart(2,'0');
+function fileDate() { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + 'u' + pad(d.getMinutes()); }
+function stamp() { const d = new Date(); svg.getElementById('stand').textContent = 'Stand per ' + fmt(d) + ' om ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function exportSvg() { const c = svg.cloneNode(true); c.querySelectorAll('.gekozen').forEach(g => g.classList.remove('gekozen')); return new XMLSerializer().serializeToString(c); }
-$('pdf').onclick = () => window.print();
+$('pdf').onclick = () => { stamp(); const t = document.title; document.title = 'Kavelstatus Fase 1 ' + fileDate(); window.print(); setTimeout(() => document.title = t, 1000); };
 $('png').onclick = () => {
+  stamp();
   const img = new Image(), scale = 4;
   img.onload = () => {
     const c = document.createElement('canvas'); c.width = 594 * scale; c.height = 842 * scale;
