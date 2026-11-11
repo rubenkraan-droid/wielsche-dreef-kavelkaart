@@ -907,7 +907,7 @@ $('a-hits').addEventListener('click', async e => {
     aDeal = d; $('a-hits').innerHTML = ''; $('a-zoek').value = '';
     $('a-klant').value = d.klant || '';
     vulMakelaars(d.makelaars, d.makelaar.naam);
-    $('a-picked').innerHTML = '<b>' + esc(d.titel) + '</b><span>Makelaar: ' + esc(d.makelaar.naam) + ' (' + esc(d.makelaar_bron) + ')</span>';
+    $('a-picked').innerHTML = '<b>' + esc(d.titel) + '</b><span>Makelaar: ' + esc(d.makelaar.naam) + (d.makelaar_bron === 'betrokken verkoper' ? ' (betrokken verkoper)' : ' (standaard, geen betrokken verkoper ingevuld)') + '</span>';
     $('a-picked').hidden = false;
     if (!aTekstAangepast) $('a-tekst').value = bouwTekst();
   } catch (err) { $('a-hits').innerHTML = ''; $('a-err').textContent = 'Deal ophalen lukt niet: ' + err.message; }
