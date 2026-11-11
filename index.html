@@ -837,33 +837,33 @@ function makelaarNaam() { return $('a-makelaar').value || STANDAARD_MAKELAAR; }
 
 function bouwTekst() {
   const s = selectie(), g = gebruik(), L = s.lijst;
-  const voornaam = ($('a-klant').value.trim() || '').replace(/^(familie|fam\.?|dhr\.?|mevr\.?|de heer|mevrouw)\s+/i, '');
-  const aanhef = $('a-klant').value.trim() ? 'Beste ' + (/^(familie|fam)/i.test($('a-klant').value.trim()) ? $('a-klant').value.trim() : voornaam.split(' ')[0]) + ',' : 'Beste,';
+  const kn = $('a-klant').value.trim();
+  const aanhef = kn ? 'Beste ' + kn + ',' : 'Geachte heer, mevrouw,';
   const p = [aanhef];
   p.push(s.wensen.length
-    ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik de villa\'s gemarkeerd die passen bij wat je zoekt: ' + opsom(s.wensen) + '.'
-    : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 zie je welke villa\'s op dit moment nog beschikbaar zijn.');
-  if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al je wensen voldoet. Ik kijk graag met je welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
+    ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik de villa\'s gemarkeerd die passen bij wat u zoekt: ' + opsom(s.wensen) + '.'
+    : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 ziet u welke villa\'s op dit moment nog beschikbaar zijn.');
+  if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al uw wensen voldoet. Ik kijk graag met u welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
   else if (s.on) p.push('Op dit moment ' + (L.length === 1 ? 'is er 1 villa' : 'zijn er ' + L.length + ' villa\'s') + ' beschikbaar die daaraan voldoe' + (L.length === 1 ? 't' : 'n') + '. Op de kaart zijn ze blauw omlijnd: ' + kavels(L) + '.');
   const water = L.filter(k => info[k].water), centraal = L.filter(k => info[k].centraal), rustig = L.filter(k => info[k].rustig), groot = L.filter(k => info[k].personen >= 8);
   const zin = [];
   if (g === 'verhuur') {
-    zin.push('Omdat je de villa wilt verhuren, kijk je vooral naar wat gasten zoeken.');
+    zin.push('Omdat u de villa wilt verhuren, kijkt u vooral naar wat gasten zoeken.');
     if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water, en dat is bij gasten altijd in trek.');
     if (centraal.length) zin.push(cap(kavels(centraal)) + (centraal.length === 1 ? ' ligt' : ' liggen') + ' dicht bij de voorzieningen, handig voor gezinnen met kinderen.');
     if (groot.length) zin.push(cap(kavels(groot)) + (groot.length === 1 ? ' is een grote villa' : ' zijn grote villa\'s') + ', geschikt voor families en vriendengroepen.');
   } else if (g === 'eigen') {
-    zin.push('Omdat je de villa vooral zelf gaat gebruiken, telt vooral waar jij je thuis voelt.');
+    zin.push('Omdat u de villa vooral zelf gaat gebruiken, telt vooral waar u zich thuis voelt.');
     if (rustig.length) zin.push(cap(kavels(rustig)) + (rustig.length === 1 ? ' ligt' : ' liggen') + ' rustig, wat verder van de drukte.');
     if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water, met uitzicht op de vijver.');
   } else if (g === 'beide') {
-    zin.push('Je wilt de villa zelf gebruiken en daarnaast verhuren. Dan is een villa die jij prettig vindt en die bij gasten in trek is de beste keuze.');
-    if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water: fijn voor jezelf en gewild bij gasten.');
+    zin.push('U wilt de villa zelf gebruiken en daarnaast verhuren. Dan is een villa die u prettig vindt en die bij gasten in trek is de beste keuze.');
+    if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water: fijn voor uzelf en gewild bij gasten.');
     if (rustig.length) zin.push(cap(kavels(rustig)) + (rustig.length === 1 ? ' ligt' : ' liggen') + ' juist rustig, wat verder van de drukte.');
   }
   if (zin.length && L.length) p.push(zin.join(' '));
-  if (s.deal) { const l = info[s.deal]; p.push('Kavel ' + s.deal + ' springt eruit: binnen deze selectie heeft die de laagste prijs per m² kavel. Met ' + l.m2 + ' m² grond bij een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa krijg je daar de meeste grond voor je geld.'); }
-  p.push('Op de volgende pagina vind je de kaart. Ik loop de opties graag met je door, ook op het park zelf.');
+  if (s.deal) { const l = info[s.deal]; p.push('Kavel ' + s.deal + ' springt eruit: binnen deze selectie heeft die de laagste prijs per m² kavel. Met ' + l.m2 + ' m² grond bij een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa krijgt u daar de meeste grond voor uw geld.'); }
+  p.push((L.length ? 'Op de volgende pagina\'s vindt u de villa\'s met foto\'s en kenmerken, en de kaart. ' : 'Op de volgende pagina vindt u de kaart. ') + 'Ik loop de opties graag met u door, ook op het park zelf.');
   p.push('Met vriendelijke groet,\n' + makelaarNaam());
   return p.join('\n\n');
 }
@@ -936,17 +936,79 @@ function kaartAlsJpeg() {
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(exportSvg());
   });
 }
-async function fotoData(naam) {
+async function fotoData(naam, z = 240) {
   const url = FOTO[voornaamKey(naam)];
   if (!url) return null;
   try {
     const b = await (await fetch(url)).blob();
-    const bmp = await createImageBitmap(b), c = document.createElement('canvas'), z = 240;
+    const bmp = await createImageBitmap(b), c = document.createElement('canvas');
     c.width = c.height = z; const x = c.getContext('2d');
     x.beginPath(); x.arc(z / 2, z / 2, z / 2, 0, Math.PI * 2); x.clip();
     const s = Math.max(z / bmp.width, z / bmp.height); x.drawImage(bmp, (z - bmp.width * s) / 2, (z - bmp.height * s) / 2, bmp.width * s, bmp.height * s);
     return c.toDataURL('image/png');
   } catch (e) { return null; }
+}
+
+// Gegevens per villatype uit de brochure Fase 1 (gebruiksoppervlakte, terras, kamers) met beeld uit de map types/.
+const VILLA = {
+  '2ELW': { opp:62, terras:16, slk:1, badk:'1 + sauna', buiten:'2', binnen:'2ELW', tekst:'Gelijkvloerse wellnessvilla voor twee, met bubbelbad, inloopregendouche, Sunshower en een en-suite Finse en infrarood sauna.' },
+  '4C': { opp:62, terras:16, slk:2, badk:'1', buiten:'4C', binnen:'4C', tekst:'Gelijkvloerse villa met een praktische indeling: badkamer met inloopdouche, dubbele wastafel, separaat toilet en een ruim terras.' },
+  '4L': { opp:80, terras:20, slk:2, badk:'2 + sauna', buiten:'4L', binnen:'4L', tekst:'Ruime villa met verdieping en kenmerkende glazen topgevel. Slaapkamer met en-suite badkamer, tweede badkamer met ligbad, Sunshower en Finse sauna.' },
+  '4ELW': { opp:80, terras:20, slk:2, badk:'2 + sauna', buiten:'4L', binnen:'4ELW', tekst:'Villa met verdieping en glazen topgevel, met een wellnessbadkamer: bubbelbad, inloopregendouche, Sunshower en Finse en infrarood sauna.' },
+  '6C': { opp:84, terras:20, slk:3, badk:'2', buiten:'6', binnen:null, tekst:'Villa met verdieping, gemetselde kopgevels en een glazen topgevel. Drie slaapkamers, waarvan één met en-suite badkamer.' },
+  '6L': { opp:86, terras:23, slk:3, badk:'2 + sauna', buiten:'6', binnen:'6L', tekst:'Villa met verdieping en glazen topgevel. Slaapkamer met en-suite badkamer, luxe badkamer met inloopregendouche en Sunshower, en een Finse sauna.' },
+  '8C': { opp:122, terras:24, slk:4, badk:'3', buiten:'8', binnen:'8C', tekst:'Ruime villa met verdieping en doorlopende dakkapel. Twee slaapkamers met en-suite badkamer en een berging met ruimte voor (elektrische) fietsen.' },
+  '8L': { opp:122, terras:24, slk:4, badk:'3 + sauna', buiten:'8', binnen:'8L', tekst:'Ruime villa met verdieping en twee en-suite slaapkamers, uitgevoerd met Finse sauna, Sunshower en een luxe badkamer met ligbad.' },
+  '10ELW': { opp:147, terras:38, slk:5, badk:'3 + sauna', buiten:'10', binnen:'10ELW', tekst:'Royale wellnessvilla met dubbele dakkapel: twee wellnessbadkamers met onder meer bubbelbad en Sunshower, en een Finse en infrarood sauna.' },
+  '12C': { opp:173, terras:38, slk:6, badk:'4', buiten:'12', binnen:'12C', tekst:'Royale villa voor grote gezelschappen, met twee slaapkamers met en-suite badkamer op de begane grond en een ruim terras.' },
+  '12ELC': { opp:179, terras:43, slk:6, badk:'4 + sauna', buiten:'12', binnen:null, tekst:'Royale villa rond koken en samenkomen: keuken met kookeiland en merkapparatuur, wijnklimaatkast, Finse sauna en een buitenkeuken met Kamado BBQ.' },
+};
+const MAX_KAARTEN = 6;
+const beeldCache = {};
+function beeld(naam) {
+  if (!naam) return Promise.resolve(null);
+  return beeldCache[naam] || (beeldCache[naam] = fetch('types/' + naam + '.jpg').then(r => r.ok ? r.blob() : null).then(b => b && new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); })).catch(() => null));
+}
+// Snijdt een foto bij tot de gevraagde verhouding (zoals object-fit: cover)
+function bijsnijden(data, ar) {
+  return new Promise(ok => {
+    const im = new Image();
+    im.onload = () => {
+      let sw = im.width, sh = sw / ar; if (sh > im.height) { sh = im.height; sw = sh * ar; }
+      const c = document.createElement('canvas'); c.width = Math.round(Math.min(1400, sw)); c.height = Math.round(c.width / ar);
+      c.getContext('2d').drawImage(im, (im.width - sw) / 2, (im.height - sh) * 0.6, sw, sh, 0, 0, c.width, c.height);
+      ok(c.toDataURL('image/jpeg', 0.85));
+    };
+    im.onerror = () => ok(data); im.src = data;
+  });
+}
+function ligging(k) { const l = info[k], t = []; if (l.water) t.push('aan het water'); if (l.centraal) t.push('bij de voorzieningen'); if (l.rustig) t.push('rustig gelegen'); return t; }
+async function villaKaart(doc, k, y, isDeal, M, W) {
+  const l = info[k], v = VILLA[l.personen + l.type] || {}, B = W - 2 * M, P = 12, H = 302;
+  doc.setFillColor(247, 245, 241); doc.roundedRect(M, y, B, H, 10, 10, 'F');
+  if (isDeal) { doc.setDrawColor(57, 255, 20); doc.setLineWidth(3); doc.roundedRect(M, y, B, H, 10, 10, 'S'); doc.setLineWidth(1); }
+  const ih = 184, ew = ih * 1.65, iw = ih * 0.875, binnen = await beeld(v.binnen && 'binnen-' + v.binnen), buiten = await beeld(v.buiten && 'buiten-' + v.buiten);
+  if (buiten) doc.addImage(buiten, 'JPEG', M + P, y + P, ew, ih, undefined, 'FAST');
+  const bx = M + B - P - iw;
+  if (binnen) doc.addImage(binnen, 'JPEG', bx, y + P, iw, ih, undefined, 'FAST');
+  else {
+    doc.setFillColor(31, 95, 79); doc.rect(bx, y + P, iw, ih, 'F'); doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text(l.personen + '-persoons', bx + 14, y + P + 44);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.text(doc.splitTextToSize(UIT[l.type], iw - 28), bx + 14, y + P + 64);
+    if (v.opp) { doc.setFontSize(10); doc.text(['ca. ' + v.opp + ' m² woonoppervlak', v.slk + ' slaapkamers', v.badk + ' badkamers'], bx + 14, y + P + ih - 48, { lineHeightFactor:1.5 }); }
+  }
+  if (isDeal) { doc.setFillColor(57, 255, 20); doc.roundedRect(M + P + 8, y + P + 8, 92, 18, 4, 4, 'F'); doc.setTextColor(11, 51, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text('BESTE DEAL (€/m²)', M + P + 54, y + P + 20.5, { align:'center' }); }
+  let ty = y + P + ih + 22;
+  doc.setTextColor(27, 43, 39); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text('Kavel ' + k, M + P, ty);
+  const tw = doc.getTextWidth('Kavel ' + k + '  ');
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.text(l.personen + '-persoons villa  ·  ' + UIT[l.type], M + P + tw, ty);
+  const lg = ligging(k);
+  if (lg.length) { doc.setFontSize(9.5); doc.setTextColor(31, 95, 79); doc.setFont('helvetica', 'bold'); doc.text(lg.join('  ·  ').toUpperCase(), M + B - P, ty, { align:'right' }); }
+  ty += 17; doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(93, 107, 103);
+  const spec = v.opp ? ['ca. ' + v.opp + ' m² woonoppervlak', 'terras ca. ' + v.terras + ' m²', v.slk + (v.slk === 1 ? ' slaapkamer' : ' slaapkamers'), v.badk + (v.badk === '1' ? ' badkamer' : ' badkamers'), 'kavel ' + l.m2 + ' m²'] : ['kavel ' + l.m2 + ' m²'];
+  doc.text(spec.join('   ·   '), M + P, ty);
+  if (v.tekst) { ty += 16; doc.setTextColor(27, 43, 39); doc.setFontSize(10); doc.text(doc.splitTextToSize(v.tekst, B - 2 * P).slice(0, 2), M + P, ty); }
+  return H;
 }
 
 async function maakPdf() {
@@ -959,17 +1021,12 @@ async function maakPdf() {
   doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
   doc.text('LANDAL DE WIELSCHE DREEF  ·  FASE 1', M, 40);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
-  doc.text(doc.splitTextToSize(klant ? 'Villa-advies voor ' + klant : 'Villa-advies', W - 2 * M - 170).slice(0, 2), M, 70);
+  doc.text(doc.splitTextToSize(klant ? 'Villa-advies voor ' + klant : 'Villa-advies', W - 2 * M).slice(0, 2), M, 70);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
   doc.text(new Date().toLocaleDateString('nl-NL', { day:'numeric', month:'long', year:'numeric' }) + (gebruik() ? '  ·  ' + GEBRUIK_TXT[gebruik()] : ''), M, 110);
-  const fx = W - M - 54, fy = 30, fr = 27, foto = await fotoData(mk);
-  if (foto) doc.addImage(foto, 'PNG', fx - fr, fy, fr * 2, fr * 2);
-  else { doc.setFillColor(255, 255, 255); doc.circle(fx, fy + fr, fr, 'F'); doc.setTextColor(...groen); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(mk.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), fx, fy + fr + 6, { align:'center' }); }
-  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(mk, fx, fy + 2 * fr + 16, { align:'center' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(mail || 'Jouw makelaar', fx, fy + 2 * fr + 28, { align:'center' });
   // wensen
   let y = 160;
-  doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('JOUW WENSEN', M, y);
+  doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('UW WENSEN', M, y);
   doc.setFont('helvetica', 'normal'); doc.setTextColor(...inkt); doc.setFontSize(10.5);
   const w = doc.splitTextToSize(s.wensen.length ? cap(opsom(s.wensen)) + '.' : 'Alle beschikbare villa\'s.', W - 2 * M); doc.text(w, M, y + 15); y += 15 + w.length * 14 + 14;
   // uitleg
@@ -979,21 +1036,46 @@ async function maakPdf() {
     if (y + r.length * 14.5 > 800) { doc.addPage(); y = 60; }
     doc.text(r, M, y); y += r.length * 14.5 + 8;
   }
-  // passende villa's
-  if (s.lijst.length && s.on) {
-    if (y + 60 > 800) { doc.addPage(); y = 60; }
-    y += 8; doc.setDrawColor(226, 221, 214); doc.line(M, y, W - M, y); y += 20;
-    doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('PASSENDE VILLA\'S', M, y); y += 16;
-    doc.setFontSize(10);
-    for (const k of s.lijst) {
-      if (y > 805) { doc.addPage(); y = 60; }
-      const isDeal = k === s.deal;
-      if (isDeal) { doc.setFillColor(57, 255, 20); doc.roundedRect(M - 4, y - 11, W - 2 * M + 8, 16, 3, 3, 'F'); }
-      doc.setTextColor(...inkt); doc.setFont('helvetica', 'bold'); doc.text('Kavel ' + k, M, y);
-      doc.setFont('helvetica', 'normal'); doc.text(kenmerken(k).join('  ·  ') + (isDeal ? '  ·  beste deal (€/m²)' : ''), M + 62, y);
-      y += 17;
+  // makelaarskaart
+  const KH = 132; let ky = 842 - 48 - KH;
+  // grote foto van de beste deal (of de eerste passende villa) in de ruimte tussen brief en makelaarskaart
+  const top = s.deal || s.lijst[0], ruimte = ky - 24 - (y + 6);
+  if (top && ruimte >= 130) {
+    const v = VILLA[info[top].personen + info[top].type] || {}, foto = await beeld(v.buiten && 'buiten-' + v.buiten);
+    if (foto) {
+      const fw = W - 2 * M, fh = Math.min(ruimte - 16, fw / 1.65), fy0 = y + 6;
+      doc.addImage(await bijsnijden(foto, fw / fh), 'JPEG', M, fy0, fw, fh, undefined, 'FAST');
+      doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      doc.text('Kavel ' + top + '  ·  ' + info[top].personen + '-persoons villa ' + UIT[info[top].type] + (top === s.deal ? '  ·  beste deal (€/m²)' : '') + '  ·  impressie', M, fy0 + fh + 12);
     }
   }
+  if (y + 16 > ky) { doc.addPage(); ky = 60; }
+  doc.setFillColor(238, 245, 242); doc.roundedRect(M, ky, W - 2 * M, KH, 10, 10, 'F');
+  const fd = 108, fxl = M + 14, fyt = ky + (KH - fd) / 2, foto = await fotoData(mk, 480);
+  if (foto) doc.addImage(foto, 'PNG', fxl, fyt, fd, fd);
+  else { doc.setFillColor(...groen); doc.circle(fxl + fd / 2, fyt + fd / 2, fd / 2, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(34); doc.text(mk.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), fxl + fd / 2, fyt + fd / 2 + 12, { align:'center' }); }
+  const tx = fxl + fd + 22;
+  doc.setTextColor(...grijs); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text('UW MAKELAAR', tx, ky + 40);
+  doc.setTextColor(...inkt); doc.setFontSize(17); doc.text(mk, tx, ky + 62);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(...grijs);
+  doc.text('Landal De Wielsche Dreef', tx, ky + 80);
+  if (mail) doc.text(mail, tx, ky + 96);
+  // villapagina's: per passende villa foto's en kenmerken (beste deal eerst)
+  const L = s.lijst.slice(), kaarten = (s.deal ? [s.deal, ...L.filter(k => k !== s.deal)] : L).slice(0, MAX_KAARTEN);
+  for (let i = 0; i < kaarten.length; i++) {
+    if (i % 2 === 0) {
+      doc.addPage(); y = 52;
+      doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      doc.text((s.on ? 'PASSENDE VILLA\'S' : 'BESCHIKBARE VILLA\'S') + (kaarten.length > 2 ? '  ·  ' + (i / 2 + 1) + ' / ' + Math.ceil(kaarten.length / 2) : ''), M, 40);
+    }
+    y += await villaKaart(doc, kaarten[i], y, kaarten[i] === s.deal, M, W) + 22;
+  }
+  if (L.length > kaarten.length) {
+    const rest = L.filter(k => !kaarten.includes(k));
+    doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    doc.text(doc.splitTextToSize('Ook beschikbaar binnen uw wensen: ' + kavels(rest) + '. Zie de kaart.', W - 2 * M), M, Math.min(y, 820));
+  }
+  if (kaarten.length) { doc.setTextColor(140, 150, 146); doc.setFontSize(7.5); doc.text('Afbeeldingen zijn impressies uit de brochure. Afwerking en inrichting kunnen per kavel afwijken.', M, 828); }
   // kaart
   doc.addPage();
   const jpg = await kaartAlsJpeg(), h = 842 - 40, b = h * 594 / 842;
