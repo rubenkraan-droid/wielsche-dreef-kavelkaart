@@ -67,6 +67,8 @@
   .check input { width:auto; }
   .result { background:#eef3ff; border:1px solid #cfdcff; border-radius:10px; padding:10px 12px; font-size:13px; }
   .result b { color:#1463ff; }
+  body.eigen #plattegrond .kavel[data-kavel] { cursor:pointer; }
+  .filters.eigen .f-row.slider { opacity:.4; pointer-events:none; }
   .linkbtn { border:0; background:none; color:var(--green); font:inherit; font-size:13px; text-decoration:underline; cursor:pointer; padding:0; justify-self:start; }
   .modal .wide { width:min(620px,100%); max-height:calc(100vh - 32px); overflow:auto; }
   .modal textarea { border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; font-size:14px; line-height:1.45; width:100%; min-height:260px; resize:vertical; color:var(--ink); }
@@ -107,20 +109,23 @@
 
     <div class="label">Wensen van de klant</div>
     <div class="filters">
-      <div class="f-row">
+      <div class="f-row slider">
         <div class="f-head"><span>Budget koopsom</span><b id="v-budget">Geen maximum</b></div>
         <input type="range" id="f-budget" min="310000" max="550000" step="5000" value="550000" aria-label="Maximaal budget">
         <label class="check"><input type="checkbox" id="f-inv"> Inclusief inventaris</label>
       </div>
-      <div class="f-row">
+      <div class="f-row slider">
         <div class="f-head"><span>Aantal personen</span><b id="v-pers">Alle villa's</b></div>
         <input type="range" id="f-pers" min="2" max="12" step="2" value="2" aria-label="Minimaal aantal personen">
       </div>
-      <div class="f-row">
+      <div class="f-row slider">
         <div class="f-head"><span>Ligging</span><b id="v-lig">Maakt niet uit</b></div>
         <input type="range" id="f-lig" min="0" max="2" step="1" value="1" aria-label="Ligging">
         <div class="ticks"><span>Bij voorzieningen</span><span>Maakt niet uit</span><span>Rustig</span></div>
         <label class="check"><input type="checkbox" id="f-water"> Aan het water</label>
+      </div>
+      <div class="f-row">
+        <label class="check"><input type="checkbox" id="f-eigen"> <b>Zelf villa's kiezen</b>&nbsp;(tik ze aan op de kaart)</label>
       </div>
       <div class="result" id="result" hidden></div>
       <button class="linkbtn" id="f-reset" hidden>Wensen wissen</button>
@@ -576,6 +581,7 @@
       </div>
     </div>
     <div class="summary" id="a-summary"></div>
+    <label>Onze aanrader (komt bovenaan, met eigen label)<select id="a-top"></select></label>
     <label>Uitleg voor de klant (pas gerust aan)<textarea id="a-tekst"></textarea></label>
     <button type="button" class="linkbtn" id="a-opnieuw">Tekst opnieuw opbouwen uit de kaart</button>
     <div class="err" id="a-err"></div>
@@ -671,7 +677,7 @@ async function setStatus(k, s) {
 }
 function logout() { pin = null; store('kavelkaart-pin', null); setEditing(false); }
 
-for (const k in lotEls) lotEls[k].addEventListener('click', () => { if (pin) openSheet(k); });
+for (const k in lotEls) lotEls[k].addEventListener('click', () => { if (eigenModus()) wisselKeuze(k); else if (pin) openSheet(k); });
 document.querySelectorAll('.choices button').forEach(b => b.addEventListener('click', () => current && setStatus(current, b.dataset.s)));
 $('sheet-close').onclick = closeSheet;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); $('modal').hidden = true; $('advies').hidden = true; } });
@@ -715,7 +721,22 @@ const budgetCache = {}; let budgetSet = null, budgetTimer = null;
 function filterVals() {
   return { budget:+$('f-budget').value, inv:$('f-inv').checked, pers:+$('f-pers').value, lig:+$('f-lig').value, water:$('f-water').checked };
 }
-function filtering() { const f = filterVals(); return f.budget < 550000 || f.pers > 2 || f.lig !== 1 || f.water; }
+function filtering() { if (eigenModus()) return true; const f = filterVals(); return f.budget < 550000 || f.pers > 2 || f.lig !== 1 || f.water; }
+// Zelf kiezen: de makelaar tikt villa's aan op de kaart; die vervangen dan de schuiven.
+const gekozen = new Set();
+const eigenModus = () => $('f-eigen').checked;
+let lgTeksten = null;
+function legendaTeksten() {
+  if (!lgTeksten) lgTeksten = [...svg.querySelectorAll('text')].filter(t => /^Past (niet )?bij de wensen$/.test(t.textContent));
+  lgTeksten.forEach(t => { const org = t.dataset.org || (t.dataset.org = t.textContent); t.textContent = !eigenModus() ? org : /niet/.test(org) ? 'Niet gekozen' : 'Gekozen door makelaar'; });
+}
+function wisselKeuze(k) {
+  const st = state[k] || 'beschikbaar';
+  if (st === 'verkocht') { msg('Kavel ' + k + ' is verkocht en kan niet gekozen worden.', true); return; }
+  gekozen.has(k) ? gekozen.delete(k) : gekozen.add(k);
+  msg(gekozen.size ? gekozen.size + (gekozen.size === 1 ? ' villa' : ' villa\'s') + ' gekozen.' : '');
+  applyFilter();
+}
 async function updateBudget() {
   const f = filterVals();
   if (f.budget >= 550000) { budgetSet = null; applyFilter(); return; }
@@ -735,7 +756,7 @@ function applyFilter() {
   const matches = [];
   for (const k in lotEls) {
     const l = info[k], s = state[k] || 'beschikbaar';
-    const ok = on && s === 'beschikbaar' && l.personen >= f.pers
+    const ok = eigenModus() ? (gekozen.has(k) && s !== 'verkocht') : on && s === 'beschikbaar' && l.personen >= f.pers
       && (f.budget >= 550000 || (budgetSet && budgetSet.has(k)))
       && (f.lig !== 0 || l.centraal) && (f.lig !== 2 || l.rustig) && (!f.water || l.water);
     lotEls[k].classList.toggle('match', ok); if (ok) matches.push(k);
@@ -745,7 +766,11 @@ function applyFilter() {
   svg.getElementById('n-match').textContent = matches.length;
   svg.getElementById('n-nomatch').textContent = Object.keys(lotEls).filter(k => (state[k] || 'beschikbaar') !== 'verkocht').length - matches.length;
   $('result').hidden = !on; $('f-reset').hidden = !on;
-  if (on) $('result').innerHTML = matches.length
+  legendaTeksten(); document.body.classList.toggle('eigen', eigenModus()); document.querySelector('.filters').classList.toggle('eigen', eigenModus());
+  if (on && eigenModus()) $('result').innerHTML = matches.length
+    ? '<b>' + matches.length + (matches.length === 1 ? ' villa gekozen' : ' villa\'s gekozen') + '</b>, blauw omlijnd: ' + matches.join(', ') + '. Tik nog eens om weg te halen.'
+    : 'Tik op de kaart de villa\'s aan die u voor deze klant wilt voorstellen.';
+  else if (on) $('result').innerHTML = matches.length
     ? '<b>' + matches.length + (matches.length === 1 ? ' woning past' : ' woningen passen') + '</b>, blauw omlijnd: ' + matches.join(', ')
     : 'Geen beschikbare woning past bij deze wensen. Verruim het budget of de ligging.';
   if (on && showDeal() && deal && matches.includes(deal)) $('result').innerHTML += '<br>Beste deal binnen deze selectie (laagste prijs per m² kavel): <b style="color:#39ff14">kavel ' + deal + '</b>, groen.';
@@ -787,7 +812,8 @@ async function updateDeal(list) {
 ['f-pers','f-lig','f-water'].forEach(id => $(id).addEventListener('input', applyFilter));
 $('f-budget').addEventListener('input', () => { applyFilter(); clearTimeout(budgetTimer); budgetTimer = setTimeout(updateBudget, 180); });
 $('f-inv').addEventListener('change', updateBudget);
-$('f-reset').onclick = () => { $('f-budget').value = 550000; $('f-inv').checked = false; $('f-pers').value = 2; $('f-lig').value = 1; $('f-water').checked = false; budgetSet = null; applyFilter(); };
+$('f-eigen').addEventListener('change', () => { msg(eigenModus() ? 'Tik op de kaart de villa\'s aan voor deze klant.' : ''); applyFilter(); });
+$('f-reset').onclick = () => { $('f-eigen').checked = false; gekozen.clear(); $('f-budget').value = 550000; $('f-inv').checked = false; $('f-pers').value = 2; $('f-lig').value = 1; $('f-water').checked = false; budgetSet = null; applyFilter(); };
 
 
 // ---- advies voor klant: PDF met kop (klant + makelaar), uitleg en kaart; opslaan in de Pipedrive-deal ----
@@ -823,7 +849,9 @@ function selectie() {
   if (f.lig === 2) wensen.push('een rustige ligging');
   if (f.water) wensen.push('aan het water');
   const d = showDeal() && deal && lijst.includes(deal) ? deal : null;
-  return { f, on, lijst, wensen, deal: d };
+  const keuze = $('a-top') ? $('a-top').value : '';
+  const top = keuze && lijst.includes(keuze) ? keuze : null;
+  return { f, on, lijst: top ? [top, ...lijst.filter(k => k !== top)] : lijst, wensen: eigenModus() ? [] : wensen, deal: d, eigen: eigenModus(), top };
 }
 function kenmerken(k) {
   const l = info[k], t = [l.personen + '-persoons', UIT[l.type]];
@@ -840,10 +868,13 @@ function bouwTekst() {
   const kn = $('a-klant').value.trim();
   const aanhef = kn ? 'Beste ' + kn + ',' : 'Geachte heer, mevrouw,';
   const p = [aanhef];
-  p.push(s.wensen.length
+  p.push(s.eigen
+    ? 'Bedankt voor het prettige gesprek. Op basis van wat u mij vertelde heb ik op de kaart van Fase 1 de villa\'s geselecteerd die volgens mij het beste bij u passen.'
+    : s.wensen.length
     ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik de villa\'s gemarkeerd die passen bij wat u zoekt: ' + opsom(s.wensen) + '.'
     : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 ziet u welke villa\'s op dit moment nog beschikbaar zijn.');
   if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al uw wensen voldoet. Ik kijk graag met u welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
+  else if (s.eigen) p.push(L.length === 1 ? 'Op de kaart is deze villa blauw omlijnd: kavel ' + L[0] + '.' : 'Het gaat om ' + L.length + ' villa\'s, blauw omlijnd op de kaart: ' + kavels(L.slice().sort()) + '.');
   else if (s.on) p.push('Op dit moment ' + (L.length === 1 ? 'is er 1 villa' : 'zijn er ' + L.length + ' villa\'s') + ' beschikbaar die daaraan voldoe' + (L.length === 1 ? 't' : 'n') + '. Op de kaart zijn ze blauw omlijnd: ' + kavels(L) + '.');
   const water = L.filter(k => info[k].water), centraal = L.filter(k => info[k].centraal), rustig = L.filter(k => info[k].rustig), groot = L.filter(k => info[k].personen >= 8);
   const zin = [];
@@ -862,7 +893,8 @@ function bouwTekst() {
     if (rustig.length) zin.push(cap(kavels(rustig)) + (rustig.length === 1 ? ' ligt' : ' liggen') + ' juist rustig, wat verder van de drukte.');
   }
   if (zin.length && L.length) p.push(zin.join(' '));
-  if (s.deal) { const l = info[s.deal]; p.push('Kavel ' + s.deal + ' springt eruit: binnen deze selectie heeft die de laagste prijs per m² kavel. Met ' + l.m2 + ' m² grond bij een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa krijgt u daar de meeste grond voor uw geld.'); }
+  if (s.top) { const l = info[s.top], lg = ligging(s.top); p.push('Mijn aanrader voor u is kavel ' + s.top + ': een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa' + (lg.length ? ', ' + opsom(lg) : '') + ', op een kavel van ' + l.m2 + ' m².' + (VILLA[l.personen + l.type] ? ' ' + VILLA[l.personen + l.type].tekst : '')); }
+  if (s.deal && s.deal !== s.top) { const l = info[s.deal]; p.push('Kavel ' + s.deal + ' springt eruit: binnen deze selectie heeft die de laagste prijs per m² kavel. Met ' + l.m2 + ' m² grond bij een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa krijgt u daar de meeste grond voor uw geld.'); }
   p.push((L.length ? 'Op de volgende pagina\'s vindt u de villa\'s met foto\'s en kenmerken, en de kaart. ' : 'Op de volgende pagina vindt u de kaart. ') + 'Ik loop de opties graag met u door, ook op het park zelf.');
   p.push('Met vriendelijke groet,\n' + makelaarNaam());
   return p.join('\n\n');
@@ -871,7 +903,14 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 function samenvatting() {
   const s = selectie();
-  $('a-summary').textContent = (s.on ? s.lijst.length + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: alle ' + s.lijst.length + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
+  vulTop();
+  $('a-summary').textContent = s.eigen ? (s.lijst.length ? s.lijst.length + ' zelf gekozen villa\'s: ' + s.lijst.slice().sort().join(', ') : 'Nog geen villa\'s gekozen. Tik ze aan op de kaart.') + (s.deal ? ' · beste deal: kavel ' + s.deal : '') : (s.on ? s.lijst.length + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: alle ' + s.lijst.length + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
+}
+function vulTop() {
+  const sel = $('a-top'), oud = sel.value;
+  const lijst = (eigenModus() ? [...gekozen].filter(k => (state[k] || 'beschikbaar') !== 'verkocht') : Object.keys(lotEls).filter(k => lotEls[k].classList.contains('match'))).sort();
+  sel.innerHTML = '<option value="">Geen aanrader uitlichten</option>' + lijst.map(k => '<option value="' + k + '">Kavel ' + k + ' · ' + info[k].personen + '-persoons ' + UIT[info[k].type] + '</option>').join('');
+  sel.value = lijst.includes(oud) ? oud : '';
 }
 function vulMakelaars(namen, kies) {
   const bekend = (namen || []).filter(n => FOTO[voornaamKey(n)]);
@@ -915,6 +954,7 @@ $('a-hits').addEventListener('click', async e => {
 $('a-tekst').addEventListener('input', () => aTekstAangepast = true);
 ['a-klant','a-makelaar'].forEach(id => $(id).addEventListener('change', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); }));
 $('a-klant').addEventListener('input', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); });
+$('a-top').addEventListener('change', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); });
 $('a-gebruik').addEventListener('change', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); });
 $('a-opnieuw').onclick = () => { aTekstAangepast = false; samenvatting(); $('a-tekst').value = bouwTekst(); };
 $('a-cancel').onclick = () => $('advies').hidden = true;
@@ -983,10 +1023,11 @@ function bijsnijden(data, ar) {
   });
 }
 function ligging(k) { const l = info[k], t = []; if (l.water) t.push('aan het water'); if (l.centraal) t.push('bij de voorzieningen'); if (l.rustig) t.push('rustig gelegen'); return t; }
-async function villaKaart(doc, k, y, isDeal, M, W) {
+async function villaKaart(doc, k, y, isDeal, M, W, isTop) {
   const l = info[k], v = VILLA[l.personen + l.type] || {}, B = W - 2 * M, P = 12, H = 302;
   doc.setFillColor(247, 245, 241); doc.roundedRect(M, y, B, H, 10, 10, 'F');
-  if (isDeal) { doc.setDrawColor(57, 255, 20); doc.setLineWidth(3); doc.roundedRect(M, y, B, H, 10, 10, 'S'); doc.setLineWidth(1); }
+  if (isTop) { doc.setDrawColor(31, 95, 79); doc.setLineWidth(3); doc.roundedRect(M, y, B, H, 10, 10, 'S'); doc.setLineWidth(1); }
+  else if (isDeal) { doc.setDrawColor(57, 255, 20); doc.setLineWidth(3); doc.roundedRect(M, y, B, H, 10, 10, 'S'); doc.setLineWidth(1); }
   const ih = 184, ew = ih * 1.65, iw = ih * 0.875, binnen = await beeld(v.binnen && 'binnen-' + v.binnen), buiten = await beeld(v.buiten && 'buiten-' + v.buiten);
   if (buiten) doc.addImage(buiten, 'JPEG', M + P, y + P, ew, ih, undefined, 'FAST');
   const bx = M + B - P - iw;
@@ -997,7 +1038,9 @@ async function villaKaart(doc, k, y, isDeal, M, W) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(12); doc.text(doc.splitTextToSize(UIT[l.type], iw - 28), bx + 14, y + P + 64);
     if (v.opp) { doc.setFontSize(10); doc.text(['ca. ' + v.opp + ' m² woonoppervlak', v.slk + ' slaapkamers', v.badk + ' badkamers'], bx + 14, y + P + ih - 48, { lineHeightFactor:1.5 }); }
   }
-  if (isDeal) { doc.setFillColor(57, 255, 20); doc.roundedRect(M + P + 8, y + P + 8, 92, 18, 4, 4, 'F'); doc.setTextColor(11, 51, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text('BESTE DEAL (€/m²)', M + P + 54, y + P + 20.5, { align:'center' }); }
+  let bx0 = M + P + 8;
+  if (isTop) { doc.setFillColor(31, 95, 79); doc.roundedRect(bx0, y + P + 8, 92, 18, 4, 4, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text('ONZE AANRADER', bx0 + 46, y + P + 20.5, { align:'center' }); bx0 += 100; }
+  if (isDeal) { doc.setFillColor(57, 255, 20); doc.roundedRect(bx0, y + P + 8, 92, 18, 4, 4, 'F'); doc.setTextColor(11, 51, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.text('BESTE DEAL (€/m²)', bx0 + 46, y + P + 20.5, { align:'center' }); }
   let ty = y + P + ih + 22;
   doc.setTextColor(27, 43, 39); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text('Kavel ' + k, M + P, ty);
   const tw = doc.getTextWidth('Kavel ' + k + '  ');
@@ -1028,7 +1071,7 @@ async function maakPdf() {
   let y = 160;
   doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('UW WENSEN', M, y);
   doc.setFont('helvetica', 'normal'); doc.setTextColor(...inkt); doc.setFontSize(10.5);
-  const w = doc.splitTextToSize(s.wensen.length ? cap(opsom(s.wensen)) + '.' : 'Alle beschikbare villa\'s.', W - 2 * M); doc.text(w, M, y + 15); y += 15 + w.length * 14 + 14;
+  const w = doc.splitTextToSize(s.eigen ? 'Een persoonlijke selectie van ' + s.lijst.length + (s.lijst.length === 1 ? ' villa' : ' villa\'s') + ', gekozen door uw makelaar.' : s.wensen.length ? cap(opsom(s.wensen)) + '.' : 'Alle beschikbare villa\'s.', W - 2 * M); doc.text(w, M, y + 15); y += 15 + w.length * 14 + 14;
   // uitleg
   doc.setFontSize(10.5); doc.setTextColor(...inkt);
   for (const alinea of $('a-tekst').value.split(/\n{2,}/)) {
@@ -1039,14 +1082,14 @@ async function maakPdf() {
   // makelaarskaart
   const KH = 132; let ky = 842 - 48 - KH;
   // grote foto van de beste deal (of de eerste passende villa) in de ruimte tussen brief en makelaarskaart
-  const top = s.deal || s.lijst[0], ruimte = ky - 24 - (y + 6);
+  const top = s.top || s.deal || s.lijst[0], ruimte = ky - 24 - (y + 6);
   if (top && ruimte >= 130) {
     const v = VILLA[info[top].personen + info[top].type] || {}, foto = await beeld(v.buiten && 'buiten-' + v.buiten);
     if (foto) {
       const fw = W - 2 * M, fh = Math.min(ruimte - 16, fw / 1.65), fy0 = y + 6;
       doc.addImage(await bijsnijden(foto, fw / fh), 'JPEG', M, fy0, fw, fh, undefined, 'FAST');
       doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      doc.text('Kavel ' + top + '  ·  ' + info[top].personen + '-persoons villa ' + UIT[info[top].type] + (top === s.deal ? '  ·  beste deal (€/m²)' : '') + '  ·  impressie', M, fy0 + fh + 12);
+      doc.text('Kavel ' + top + '  ·  ' + info[top].personen + '-persoons villa ' + UIT[info[top].type] + (top === s.top ? '  ·  onze aanrader' : top === s.deal ? '  ·  beste deal (€/m²)' : '') + '  ·  impressie', M, fy0 + fh + 12);
     }
   }
   if (y + 16 > ky) { doc.addPage(); ky = 60; }
@@ -1061,19 +1104,19 @@ async function maakPdf() {
   doc.text('Landal De Wielsche Dreef', tx, ky + 80);
   if (mail) doc.text(mail, tx, ky + 96);
   // villapagina's: per passende villa foto's en kenmerken (beste deal eerst)
-  const L = s.lijst.slice(), kaarten = (s.deal ? [s.deal, ...L.filter(k => k !== s.deal)] : L).slice(0, MAX_KAARTEN);
+  const L = s.lijst.slice(), kaarten = [...new Set([s.top, s.deal, ...L].filter(Boolean))].slice(0, MAX_KAARTEN);
   for (let i = 0; i < kaarten.length; i++) {
     if (i % 2 === 0) {
       doc.addPage(); y = 52;
       doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-      doc.text((s.on ? 'PASSENDE VILLA\'S' : 'BESCHIKBARE VILLA\'S') + (kaarten.length > 2 ? '  ·  ' + (i / 2 + 1) + ' / ' + Math.ceil(kaarten.length / 2) : ''), M, 40);
+      doc.text((s.eigen ? 'GESELECTEERD VOOR U' : s.on ? 'PASSENDE VILLA\'S' : 'BESCHIKBARE VILLA\'S') + (kaarten.length > 2 ? '  ·  ' + (i / 2 + 1) + ' / ' + Math.ceil(kaarten.length / 2) : ''), M, 40);
     }
-    y += await villaKaart(doc, kaarten[i], y, kaarten[i] === s.deal, M, W) + 22;
+    y += await villaKaart(doc, kaarten[i], y, kaarten[i] === s.deal, M, W, kaarten[i] === s.top) + 22;
   }
   if (L.length > kaarten.length) {
     const rest = L.filter(k => !kaarten.includes(k));
     doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
-    doc.text(doc.splitTextToSize('Ook beschikbaar binnen uw wensen: ' + kavels(rest) + '. Zie de kaart.', W - 2 * M), M, Math.min(y, 820));
+    doc.text(doc.splitTextToSize((s.eigen ? 'Ook geselecteerd: ' : 'Ook beschikbaar binnen uw wensen: ') + kavels(rest) + '. Zie de kaart.', W - 2 * M), M, Math.min(y, 820));
   }
   if (kaarten.length) { doc.setTextColor(140, 150, 146); doc.setFontSize(7.5); doc.text('Afbeeldingen zijn impressies uit de brochure. Afwerking en inrichting kunnen per kavel afwijken.', M, 828); }
   // kaart
@@ -1087,7 +1130,7 @@ function notitie() {
   const s = selectie();
   return '<b>Villa-advies via de kavelkaart</b> (' + esc(fileDate().replace('u', ':')) + ', ' + esc(naam || 'makelaar') + ')<br>' +
     'Makelaar: ' + esc(makelaarNaam()) + (gebruik() ? '<br>Gebruik: ' + esc(GEBRUIK_TXT[gebruik()]) : '') +
-    '<br>Wensen: ' + esc(s.wensen.length ? opsom(s.wensen) : 'geen filter') +
+    '<br>Wensen: ' + esc(s.eigen ? 'zelf gekozen door de makelaar' : s.wensen.length ? opsom(s.wensen) : 'geen filter') + (s.top ? '<br>Aanrader: kavel ' + esc(s.top) : '') +
     '<br>Passende villa\'s: ' + esc(s.lijst.join(', ') || 'geen') + (s.deal ? '<br>Beste deal (€/m²): kavel ' + esc(s.deal) : '') +
     '<br><br>' + esc($('a-tekst').value).replace(/\n/g, '<br>');
 }
