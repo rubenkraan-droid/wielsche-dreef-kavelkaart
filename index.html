@@ -68,6 +68,21 @@
   .result { background:#eef3ff; border:1px solid #cfdcff; border-radius:10px; padding:10px 12px; font-size:13px; }
   .result b { color:#1463ff; }
   .linkbtn { border:0; background:none; color:var(--green); font:inherit; font-size:13px; text-decoration:underline; cursor:pointer; padding:0; justify-self:start; }
+  .modal .wide { width:min(620px,100%); max-height:calc(100vh - 32px); overflow:auto; }
+  .modal textarea { border:1px solid var(--line); border-radius:10px; padding:10px 12px; font:inherit; font-size:14px; line-height:1.45; width:100%; min-height:260px; resize:vertical; color:var(--ink); }
+  .modal select { border:1px solid var(--line); border-radius:10px; padding:9px 10px; font:inherit; font-size:14px; background:#fff; color:var(--ink); }
+  .hits { display:grid; gap:4px; max-height:180px; overflow:auto; }
+  .hits button { text-align:left; border:1px solid var(--line); background:#fff; border-radius:8px; padding:8px 10px; font:inherit; font-size:13px; cursor:pointer; color:var(--ink); }
+  .hits button:hover { background:#f3f7f5; }
+  .hits small { color:var(--muted); }
+  .picked { background:#eaf3ef; border:1px solid #cfe3da; border-radius:10px; padding:10px 12px; font-size:13px; display:grid; gap:2px; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; }
+  .seg label { display:flex; gap:6px; align-items:center; border:1px solid var(--line); border-radius:999px; padding:6px 12px; color:var(--ink); cursor:pointer; }
+  .seg input { width:auto; margin:0; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .summary { font-size:13px; color:var(--muted); background:#f7f5f1; border-radius:10px; padding:8px 12px; }
+  .modal .row.split { justify-content:space-between; flex-wrap:wrap; }
+  @media (max-width:560px) { .two { grid-template-columns:1fr; } }
   @media (max-width: 820px) { .wrap { grid-template-columns:1fr; padding:12px 16px 120px; } aside { position:static; } }
   @media print {
     @page { size: A4 portrait; margin: 8mm; }
@@ -121,6 +136,7 @@
       <div class="edit-on"><span>Bewerken staat aan<span id="wie"></span></span><button id="logout">Stoppen</button></div>
       <p class="sub" style="margin:10px 0 8px">Tik op een woning in de kaart, of vul een kavelnummer in.</p>
       <form class="quick" id="quick"><input id="q-kavel" inputmode="numeric" placeholder="bv. 112" aria-label="Kavelnummer" maxlength="3"><button class="btn" type="submit">Kies</button></form>
+      <button class="btn primary" id="advies-open" type="button" style="width:100%;margin-top:10px">Advies voor klant maken</button>
     </div>
 
     <div class="label">Delen</div>
@@ -540,6 +556,39 @@
   </form>
 </div>
 
+<div class="modal" id="advies" hidden>
+  <form id="adviesform" class="wide" onsubmit="return false">
+    <h2>Advies voor klant</h2>
+    <p>Zet eerst de wensen van de klant op de kaart en controleer de blauwe villa's. Dit advies neemt die selectie over.</p>
+    <label>Deal in Pipedrive (zoek op naam van de klant)<input id="a-zoek" placeholder="bv. De Vries" autocomplete="off"></label>
+    <div class="hits" id="a-hits"></div>
+    <div class="picked" id="a-picked" hidden></div>
+    <div class="two">
+      <label>Naam klant (aanhef)<input id="a-klant" maxlength="80" placeholder="bv. familie De Vries"></label>
+      <label>Makelaar<select id="a-makelaar"></select></label>
+    </div>
+    <div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Gebruik</div>
+      <div class="seg" id="a-gebruik">
+        <label><input type="radio" name="gebruik" value="eigen"> Eigen gebruik</label>
+        <label><input type="radio" name="gebruik" value="verhuur"> Verhuur</label>
+        <label><input type="radio" name="gebruik" value="beide"> Beide</label>
+      </div>
+    </div>
+    <div class="summary" id="a-summary"></div>
+    <label>Uitleg voor de klant (pas gerust aan)<textarea id="a-tekst"></textarea></label>
+    <button type="button" class="linkbtn" id="a-opnieuw">Tekst opnieuw opbouwen uit de kaart</button>
+    <div class="err" id="a-err"></div>
+    <div class="row split">
+      <button type="button" class="btn" id="a-cancel">Sluiten</button>
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" id="a-download">Alleen PDF downloaden</button>
+        <button type="button" class="btn primary" id="a-opslaan">Opslaan in Pipedrive</button>
+      </span>
+    </div>
+  </form>
+</div>
+
 <script>
 const API = 'https://ooqkpazyvohsrdvxfnug.supabase.co/rest/v1';
 const KEY = 'sb_publishable_fkVuhCNu_Q0Ze9x5VPee1g_jtzClD0O';
@@ -625,7 +674,7 @@ function logout() { pin = null; store('kavelkaart-pin', null); setEditing(false)
 for (const k in lotEls) lotEls[k].addEventListener('click', () => { if (pin) openSheet(k); });
 document.querySelectorAll('.choices button').forEach(b => b.addEventListener('click', () => current && setStatus(current, b.dataset.s)));
 $('sheet-close').onclick = closeSheet;
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); $('modal').hidden = true; } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); $('modal').hidden = true; $('advies').hidden = true; } });
 $('quick').onsubmit = e => { e.preventDefault(); const k = $('q-kavel').value.trim(); if (lotEls[k]) { openSheet(k); $('q-kavel').value = ''; msg(''); } else msg('Kavel ' + k + ' bestaat niet in Fase 1 (101 t/m 154).', true); };
 $('login').onclick = () => { $('naam').value = load('kavelkaart-naam') || ''; $('pin').value = ''; $('pinerr').textContent = ''; $('modal').hidden = false; ($('naam').value ? $('pin') : $('naam')).focus(); };
 $('pincancel').onclick = () => $('modal').hidden = true;
@@ -739,6 +788,241 @@ async function updateDeal(list) {
 $('f-budget').addEventListener('input', () => { applyFilter(); clearTimeout(budgetTimer); budgetTimer = setTimeout(updateBudget, 180); });
 $('f-inv').addEventListener('change', updateBudget);
 $('f-reset').onclick = () => { $('f-budget').value = 550000; $('f-inv').checked = false; $('f-pers').value = 2; $('f-lig').value = 1; $('f-water').checked = false; budgetSet = null; applyFilter(); };
+
+
+// ---- advies voor klant: PDF met kop (klant + makelaar), uitleg en kaart; opslaan in de Pipedrive-deal ----
+const FN = 'https://ooqkpazyvohsrdvxfnug.supabase.co/functions/v1/kavelkaart-advies';
+// Foto per makelaar (voornaam, kleine letters). Bestanden staan naast deze pagina in de map makelaars/.
+const FOTO = {};
+const STANDAARD_MAKELAAR = 'Willem';
+let aDeal = null, aTekstAangepast = false, jspdfLaden = null;
+
+async function fn(body) {
+  const r = await fetch(FN, { method:'POST', headers:{ apikey:KEY, 'Content-Type':'application/json' }, body: JSON.stringify({ pin, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { if (r.status === 403) { logout(); $('advies').hidden = true; msg((j.fout || 'Pincode onjuist') + '. Log opnieuw in.', true); } throw new Error(j.fout || 'fout ' + r.status); }
+  return j;
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const opsom = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' en ' + a[a.length - 1];
+const kavels = a => (a.length === 1 ? 'kavel ' : 'kavels ') + opsom(a);
+const gebruik = () => (document.querySelector('input[name=gebruik]:checked') || {}).value || '';
+const GEBRUIK_TXT = { eigen:'Eigen gebruik', verhuur:'Verhuur', beide:'Eigen gebruik en verhuur' };
+
+function selectie() {
+  const f = filterVals(), on = filtering();
+  const vrij = Object.keys(lotEls).filter(k => (state[k] || 'beschikbaar') === 'beschikbaar');
+  const lijst = on ? Object.keys(lotEls).filter(k => lotEls[k].classList.contains('match')) : vrij;
+  const wensen = [];
+  if (f.pers > 2) wensen.push('plek voor minimaal ' + f.pers + ' personen');
+  if (f.budget < 550000) wensen.push('een koopsom tot ' + euro(f.budget) + (f.inv ? ' inclusief inventaris' : ''));
+  if (f.lig === 0) wensen.push('dicht bij de voorzieningen');
+  if (f.lig === 2) wensen.push('een rustige ligging');
+  if (f.water) wensen.push('aan het water');
+  const d = showDeal() && deal && lijst.includes(deal) ? deal : null;
+  return { f, on, lijst, wensen, deal: d };
+}
+function kenmerken(k) {
+  const l = info[k], t = [l.personen + '-persoons', UIT[l.type]];
+  if (l.water) t.push('aan het water');
+  if (l.centraal) t.push('bij de voorzieningen');
+  if (l.rustig) t.push('rustig gelegen');
+  t.push('kavel ' + l.m2 + ' m²');
+  return t;
+}
+function makelaarNaam() { return $('a-makelaar').value || STANDAARD_MAKELAAR; }
+
+function bouwTekst() {
+  const s = selectie(), g = gebruik(), L = s.lijst;
+  const voornaam = ($('a-klant').value.trim() || '').replace(/^(familie|fam\.?|dhr\.?|mevr\.?|de heer|mevrouw)\s+/i, '');
+  const aanhef = $('a-klant').value.trim() ? 'Beste ' + (/^(familie|fam)/i.test($('a-klant').value.trim()) ? $('a-klant').value.trim() : voornaam.split(' ')[0]) + ',' : 'Beste,';
+  const p = [aanhef];
+  p.push(s.wensen.length
+    ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik de villa\'s gemarkeerd die passen bij wat je zoekt: ' + opsom(s.wensen) + '.'
+    : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 zie je welke villa\'s op dit moment nog beschikbaar zijn.');
+  if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al je wensen voldoet. Ik kijk graag met je welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
+  else if (s.on) p.push('Op dit moment ' + (L.length === 1 ? 'is er 1 villa' : 'zijn er ' + L.length + ' villa\'s') + ' beschikbaar die daaraan voldoe' + (L.length === 1 ? 't' : 'n') + '. Op de kaart zijn ze blauw omlijnd: ' + kavels(L) + '.');
+  const water = L.filter(k => info[k].water), centraal = L.filter(k => info[k].centraal), rustig = L.filter(k => info[k].rustig), groot = L.filter(k => info[k].personen >= 8);
+  const zin = [];
+  if (g === 'verhuur') {
+    zin.push('Omdat je de villa wilt verhuren, kijk je vooral naar wat gasten zoeken.');
+    if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water, en dat is bij gasten altijd in trek.');
+    if (centraal.length) zin.push(cap(kavels(centraal)) + (centraal.length === 1 ? ' ligt' : ' liggen') + ' dicht bij de voorzieningen, handig voor gezinnen met kinderen.');
+    if (groot.length) zin.push(cap(kavels(groot)) + (groot.length === 1 ? ' is een grote villa' : ' zijn grote villa\'s') + ', geschikt voor families en vriendengroepen.');
+  } else if (g === 'eigen') {
+    zin.push('Omdat je de villa vooral zelf gaat gebruiken, telt vooral waar jij je thuis voelt.');
+    if (rustig.length) zin.push(cap(kavels(rustig)) + (rustig.length === 1 ? ' ligt' : ' liggen') + ' rustig, wat verder van de drukte.');
+    if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water, met uitzicht op de vijver.');
+  } else if (g === 'beide') {
+    zin.push('Je wilt de villa zelf gebruiken en daarnaast verhuren. Dan is een villa die jij prettig vindt en die bij gasten in trek is de beste keuze.');
+    if (water.length) zin.push(cap(kavels(water)) + (water.length === 1 ? ' ligt' : ' liggen') + ' aan het water: fijn voor jezelf en gewild bij gasten.');
+    if (rustig.length) zin.push(cap(kavels(rustig)) + (rustig.length === 1 ? ' ligt' : ' liggen') + ' juist rustig, wat verder van de drukte.');
+  }
+  if (zin.length && L.length) p.push(zin.join(' '));
+  if (s.deal) { const l = info[s.deal]; p.push('Kavel ' + s.deal + ' springt eruit: binnen deze selectie heeft die de laagste prijs per m² kavel. Met ' + l.m2 + ' m² grond bij een ' + l.personen + '-persoons ' + UIT[l.type] + ' villa krijg je daar de meeste grond voor je geld.'); }
+  p.push('Op de volgende pagina vind je de kaart. Ik loop de opties graag met je door, ook op het park zelf.');
+  p.push('Met vriendelijke groet,\n' + makelaarNaam());
+  return p.join('\n\n');
+}
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function samenvatting() {
+  const s = selectie();
+  $('a-summary').textContent = (s.on ? s.lijst.length + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: alle ' + s.lijst.length + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
+}
+function vulMakelaars(namen, kies) {
+  const sel = $('a-makelaar'), lijst = [...new Set([...(namen || []), kies, STANDAARD_MAKELAAR].filter(Boolean))];
+  sel.innerHTML = lijst.map(n => '<option>' + esc(n) + '</option>').join('');
+  sel.value = kies || STANDAARD_MAKELAAR;
+}
+function openAdvies() {
+  $('a-err').textContent = ''; $('a-hits').innerHTML = '';
+  if (!aDeal) { $('a-picked').hidden = true; vulMakelaars([], STANDAARD_MAKELAAR); }
+  samenvatting();
+  if (!aTekstAangepast) $('a-tekst').value = bouwTekst();
+  $('advies').hidden = false; $('a-zoek').focus();
+}
+let zoekTimer = null;
+$('a-zoek').addEventListener('input', () => {
+  clearTimeout(zoekTimer);
+  const q = $('a-zoek').value.trim();
+  if (q.length < 2) { $('a-hits').innerHTML = ''; return; }
+  zoekTimer = setTimeout(async () => {
+    try {
+      const r = await fn({ actie:'zoek', q });
+      if (q !== $('a-zoek').value.trim()) return;
+      $('a-hits').innerHTML = r.deals.length ? r.deals.map(d => '<button type="button" data-id="' + d.id + '"><b>' + esc(d.klant || d.titel) + '</b> <small>' + esc(d.titel) + (d.fase ? ' · ' + esc(d.fase) : '') + (d.wd ? '' : ' · ander project') + (d.status !== 'open' ? ' · ' + esc(d.status) : '') + '</small></button>').join('') : '<small style="color:var(--muted)">Geen deals gevonden.</small>';
+    } catch (e) { $('a-err').textContent = 'Zoeken in Pipedrive lukt niet: ' + e.message; }
+  }, 300);
+});
+$('a-hits').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-id]'); if (!b) return;
+  $('a-err').textContent = ''; $('a-hits').innerHTML = '<small style="color:var(--muted)">Deal ophalen…</small>';
+  try {
+    const d = await fn({ actie:'deal', deal_id:+b.dataset.id });
+    aDeal = d; $('a-hits').innerHTML = ''; $('a-zoek').value = '';
+    $('a-klant').value = d.klant || '';
+    vulMakelaars(d.makelaars, d.makelaar.naam);
+    $('a-picked').innerHTML = '<b>' + esc(d.titel) + '</b><span>Makelaar: ' + esc(d.makelaar.naam) + ' (' + esc(d.makelaar_bron) + ')</span>';
+    $('a-picked').hidden = false;
+    if (!aTekstAangepast) $('a-tekst').value = bouwTekst();
+  } catch (err) { $('a-hits').innerHTML = ''; $('a-err').textContent = 'Deal ophalen lukt niet: ' + err.message; }
+});
+$('a-tekst').addEventListener('input', () => aTekstAangepast = true);
+['a-klant','a-makelaar'].forEach(id => $(id).addEventListener('change', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); }));
+$('a-klant').addEventListener('input', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); });
+$('a-gebruik').addEventListener('change', () => { if (!aTekstAangepast) $('a-tekst').value = bouwTekst(); });
+$('a-opnieuw').onclick = () => { aTekstAangepast = false; samenvatting(); $('a-tekst').value = bouwTekst(); };
+$('a-cancel').onclick = () => $('advies').hidden = true;
+$('advies-open').onclick = openAdvies;
+
+function laadJsPdf() {
+  if (window.jspdf) return Promise.resolve();
+  return jspdfLaden || (jspdfLaden = new Promise((ok, nok) => {
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = ok; s.onerror = () => { jspdfLaden = null; nok(new Error('PDF-module laadt niet')); }; document.head.appendChild(s);
+  }));
+}
+function kaartAlsJpeg() {
+  stamp();
+  return new Promise((ok, nok) => {
+    const img = new Image(), scale = 3;
+    img.onload = () => { const c = document.createElement('canvas'); c.width = 594 * scale; c.height = 842 * scale; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', 0.86)); };
+    img.onerror = () => nok(new Error('kaart tekenen mislukt'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(exportSvg());
+  });
+}
+async function fotoData(naam) {
+  const url = FOTO[(naam || '').split(' ')[0].toLowerCase()];
+  if (!url) return null;
+  try {
+    const b = await (await fetch(url)).blob();
+    const bmp = await createImageBitmap(b), c = document.createElement('canvas'), z = 240;
+    c.width = c.height = z; const x = c.getContext('2d');
+    x.beginPath(); x.arc(z / 2, z / 2, z / 2, 0, Math.PI * 2); x.clip();
+    const s = Math.max(z / bmp.width, z / bmp.height); x.drawImage(bmp, (z - bmp.width * s) / 2, (z - bmp.height * s) / 2, bmp.width * s, bmp.height * s);
+    return c.toDataURL('image/png');
+  } catch (e) { return null; }
+}
+
+async function maakPdf() {
+  await laadJsPdf();
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit:'pt', format:'a4' });
+  const W = 595.28, M = 48, s = selectie(), klant = $('a-klant').value.trim(), mk = makelaarNaam(), mail = aDeal && aDeal.makelaar.naam === mk ? aDeal.makelaar.email : null;
+  const groen = [31, 95, 79], inkt = [27, 43, 39], grijs = [93, 107, 103];
+  // kop
+  doc.setFillColor(...groen); doc.rect(0, 0, W, 128, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+  doc.text('LANDAL DE WIELSCHE DREEF  ·  FASE 1', M, 40);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
+  doc.text(doc.splitTextToSize(klant ? 'Villa-advies voor ' + klant : 'Villa-advies', W - 2 * M - 170).slice(0, 2), M, 70);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(new Date().toLocaleDateString('nl-NL', { day:'numeric', month:'long', year:'numeric' }) + (gebruik() ? '  ·  ' + GEBRUIK_TXT[gebruik()] : ''), M, 110);
+  const fx = W - M - 54, fy = 30, fr = 27, foto = await fotoData(mk);
+  if (foto) doc.addImage(foto, 'PNG', fx - fr, fy, fr * 2, fr * 2);
+  else { doc.setFillColor(255, 255, 255); doc.circle(fx, fy + fr, fr, 'F'); doc.setTextColor(...groen); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(mk.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase(), fx, fy + fr + 6, { align:'center' }); }
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.text(mk, fx, fy + 2 * fr + 16, { align:'center' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(mail || 'Jouw makelaar', fx, fy + 2 * fr + 28, { align:'center' });
+  // wensen
+  let y = 160;
+  doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('JOUW WENSEN', M, y);
+  doc.setFont('helvetica', 'normal'); doc.setTextColor(...inkt); doc.setFontSize(10.5);
+  const w = doc.splitTextToSize(s.wensen.length ? cap(opsom(s.wensen)) + '.' : 'Alle beschikbare villa\'s.', W - 2 * M); doc.text(w, M, y + 15); y += 15 + w.length * 14 + 14;
+  // uitleg
+  doc.setFontSize(10.5); doc.setTextColor(...inkt);
+  for (const alinea of $('a-tekst').value.split(/\n{2,}/)) {
+    const r = doc.splitTextToSize(alinea.trim(), W - 2 * M);
+    if (y + r.length * 14.5 > 800) { doc.addPage(); y = 60; }
+    doc.text(r, M, y); y += r.length * 14.5 + 8;
+  }
+  // passende villa's
+  if (s.lijst.length && s.on) {
+    if (y + 60 > 800) { doc.addPage(); y = 60; }
+    y += 8; doc.setDrawColor(226, 221, 214); doc.line(M, y, W - M, y); y += 20;
+    doc.setTextColor(...grijs); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.text('PASSENDE VILLA\'S', M, y); y += 16;
+    doc.setFontSize(10);
+    for (const k of s.lijst) {
+      if (y > 805) { doc.addPage(); y = 60; }
+      const isDeal = k === s.deal;
+      if (isDeal) { doc.setFillColor(57, 255, 20); doc.roundedRect(M - 4, y - 11, W - 2 * M + 8, 16, 3, 3, 'F'); }
+      doc.setTextColor(...inkt); doc.setFont('helvetica', 'bold'); doc.text('Kavel ' + k, M, y);
+      doc.setFont('helvetica', 'normal'); doc.text(kenmerken(k).join('  ·  ') + (isDeal ? '  ·  beste deal (€/m²)' : ''), M + 62, y);
+      y += 17;
+    }
+  }
+  // kaart
+  doc.addPage();
+  const jpg = await kaartAlsJpeg(), h = 842 - 40, b = h * 594 / 842;
+  doc.addImage(jpg, 'JPEG', (W - b) / 2, 20, b, h);
+  return doc;
+}
+const bestandsnaam = () => 'Villa-advies ' + ($('a-klant').value.trim() || 'klant').replace(/[\\/:*?"<>|]/g, '') + ' ' + fileDate() + '.pdf';
+function notitie() {
+  const s = selectie();
+  return '<b>Villa-advies via de kavelkaart</b> (' + esc(fileDate().replace('u', ':')) + ', ' + esc(naam || 'makelaar') + ')<br>' +
+    'Makelaar: ' + esc(makelaarNaam()) + (gebruik() ? '<br>Gebruik: ' + esc(GEBRUIK_TXT[gebruik()]) : '') +
+    '<br>Wensen: ' + esc(s.wensen.length ? opsom(s.wensen) : 'geen filter') +
+    '<br>Passende villa\'s: ' + esc(s.lijst.join(', ') || 'geen') + (s.deal ? '<br>Beste deal (€/m²): kavel ' + esc(s.deal) : '') +
+    '<br><br>' + esc($('a-tekst').value).replace(/\n/g, '<br>');
+}
+async function pdfActie(opslaan) {
+  $('a-err').textContent = '';
+  if (opslaan && !aDeal) { $('a-err').textContent = 'Kies eerst een deal in Pipedrive.'; return; }
+  if (!$('a-klant').value.trim()) { $('a-err').textContent = 'Vul de naam van de klant in.'; return; }
+  const knop = opslaan ? $('a-opslaan') : $('a-download'), oud = knop.textContent;
+  knop.disabled = true; knop.textContent = 'Bezig…';
+  try {
+    const doc = await maakPdf(), naamPdf = bestandsnaam();
+    doc.save(naamPdf);
+    if (opslaan) {
+      await fn({ actie:'opslaan', deal_id:aDeal.id, pdf: doc.output('datauristring').split(',')[1], bestandsnaam:naamPdf, notitie:notitie() });
+      $('advies').hidden = true; msg('Advies opgeslagen in Pipedrive bij ' + aDeal.titel + ', met notitie.');
+    } else msg('PDF gedownload.');
+  } catch (e) { $('a-err').textContent = (opslaan ? 'Opslaan is niet gelukt: ' : 'PDF maken is niet gelukt: ') + e.message; }
+  knop.disabled = false; knop.textContent = oud;
+}
+$('a-download').onclick = () => pdfActie(false);
+$('a-opslaan').onclick = () => pdfActie(true);
 
 naam = load('kavelkaart-naam') || ''; pin = load('kavelkaart-pin');
 setEditing(!!pin);
