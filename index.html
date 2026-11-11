@@ -559,11 +559,7 @@
 <div class="modal" id="advies" hidden>
   <form id="adviesform" class="wide" onsubmit="return false">
     <h2>Advies voor klant</h2>
-    <p>Zet eerst de wensen van de klant op de kaart en controleer de blauwe villa's. Dit advies neemt die selectie over. Downloaden kan altijd; voor opslaan in Pipedrive is de pincode nodig.</p>
-    <div class="two" id="a-pinrow" hidden>
-      <label>Pincode (alleen nodig voor Pipedrive)<input id="a-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="12"></label>
-      <span style="align-self:end"><button type="button" class="btn" id="a-pinok">Koppel Pipedrive</button></span>
-    </div>
+    <p>Zet eerst de wensen van de klant op de kaart en controleer de blauwe villa's. Dit advies neemt die selectie over.</p>
     <label id="a-zoekrow">Deal in Pipedrive (zoek op naam van de klant)<input id="a-zoek" placeholder="bv. De Vries" autocomplete="off"></label>
     <div class="hits" id="a-hits"></div>
     <div class="picked" id="a-picked" hidden></div>
@@ -805,9 +801,9 @@ const MAKELAARS = ['André', 'Sem', 'Walter', 'Willem'];
 let aDeal = null, aTekstAangepast = false, jspdfLaden = null;
 
 async function fn(body) {
-  const r = await fetch(FN, { method:'POST', headers:{ apikey:KEY, 'Content-Type':'application/json' }, body: JSON.stringify({ pin, ...body }) });
+  const r = await fetch(FN, { method:'POST', headers:{ apikey:KEY, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { if (r.status === 403) { logout(); pdToegang(); } throw new Error(j.fout || 'fout ' + r.status); }
+  if (!r.ok) {  throw new Error(j.fout || 'fout ' + r.status); }
   return j;
 }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -878,27 +874,17 @@ function samenvatting() {
   $('a-summary').textContent = (s.on ? s.lijst.length + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: alle ' + s.lijst.length + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
 }
 function vulMakelaars(namen, kies) {
-  const sel = $('a-makelaar'), lijst = [...new Set([...(namen && namen.length ? namen : MAKELAARS), kies, STANDAARD_MAKELAAR].filter(Boolean))];
+  const bekend = (namen || []).filter(n => FOTO[voornaamKey(n)]);
+  const sel = $('a-makelaar'), lijst = [...new Set([...(bekend.length ? bekend : MAKELAARS), kies, STANDAARD_MAKELAAR].filter(Boolean))];
   sel.innerHTML = lijst.map(n => '<option>' + esc(n) + '</option>').join('');
   sel.value = kies || STANDAARD_MAKELAAR;
 }
-function pdToegang() { $('a-pinrow').hidden = !!pin; $('a-zoekrow').hidden = !pin; }
-$('a-pinok').onclick = async () => {
-  const p = $('a-pin').value.trim(); if (!p) return;
-  $('a-err').textContent = '';
-  try {
-    const r = await api('/rpc/kavelkaart_check_pin', { method:'POST', body: JSON.stringify({p_kaart:KAART, p_pin:p}) });
-    if (r === 'ok') { pin = p; store('kavelkaart-pin', pin); setEditing(true); pdToegang(); $('a-zoek').focus(); }
-    else $('a-err').textContent = r === 'geblokkeerd' ? 'Te veel foute pogingen. Probeer het over 15 minuten opnieuw.' : 'Deze pincode klopt niet.';
-  } catch (e) { $('a-err').textContent = 'Geen verbinding. Probeer het opnieuw.'; }
-};
-$('a-pin').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('a-pinok').click(); } });
 function openAdvies() {
-  $('a-err').textContent = ''; $('a-hits').innerHTML = ''; pdToegang();
+  $('a-err').textContent = ''; $('a-hits').innerHTML = '';
   if (!aDeal) { $('a-picked').hidden = true; vulMakelaars([], STANDAARD_MAKELAAR); }
   samenvatting();
   if (!aTekstAangepast) $('a-tekst').value = bouwTekst();
-  $('advies').hidden = false; (pin ? $('a-zoek') : $('a-klant')).focus();
+  $('advies').hidden = false; $('a-zoek').focus();
 }
 let zoekTimer = null;
 $('a-zoek').addEventListener('input', () => {
@@ -1025,7 +1011,6 @@ function notitie() {
 }
 async function pdfActie(opslaan) {
   $('a-err').textContent = '';
-  if (opslaan && !pin) { $('a-err').textContent = 'Vul eerst de pincode in om Pipedrive te koppelen.'; $('a-pin').focus(); return; }
   if (opslaan && !aDeal) { $('a-err').textContent = 'Kies eerst een deal in Pipedrive.'; return; }
   if (!$('a-klant').value.trim()) { $('a-err').textContent = 'Vul de naam van de klant in.'; return; }
   const knop = opslaan ? $('a-opslaan') : $('a-download'), oud = knop.textContent;
