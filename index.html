@@ -890,11 +890,11 @@ function bouwTekst() {
   p.push(s.eigen
     ? 'Bedankt voor het prettige gesprek. Op basis van wat u mij vertelde heb ik op de kaart van Fase 1 de villa\'s geselecteerd die volgens mij het beste bij u passen.'
     : s.wensen.length
-    ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik de villa\'s gemarkeerd die passen bij wat u zoekt: ' + opsom(s.wensen) + '.'
+    ? 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 heb ik gekeken naar wat u zoekt: ' + opsom(s.wensen) + '.'
     : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 ziet u welke villa\'s op dit moment nog beschikbaar zijn.');
   if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al uw wensen voldoet. Ik kijk graag met u welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
   else if (s.eigen) p.push(L.length === 1 ? 'Op de kaart is deze villa blauw omlijnd: kavel ' + L[0] + '.' : 'Het gaat om ' + L.length + ' villa\'s, blauw omlijnd op de kaart: ' + kavels(L.slice().sort()) + '.');
-  else if (s.on) p.push('Op dit moment ' + (s.aantal === 1 ? 'is er 1 villa beschikbaar die daaraan voldoet' : 'zijn er ' + s.aantal + ' villa\'s beschikbaar die daaraan voldoen') + '. ' + (s.aantal > L.length ? 'Daaruit heb ik de ' + L.length + ' met de beste prijs per m² kavel voor u geselecteerd. Op de kaart zijn ze blauw omlijnd: ' : 'Op de kaart zijn ze blauw omlijnd: ') + kavels(L) + '.');
+  else if (s.on) p.push(L.length === 1 ? 'Op basis van uw wensen is dit voor u de beste keuze. Op de kaart is deze blauw omlijnd: kavel ' + L[0] + '.' : 'Op basis van uw wensen heb ik de ' + L.length + ' villa\'s geselecteerd die voor u de beste deal zijn, gerekend naar prijs per m² kavel. Op de kaart zijn ze blauw omlijnd: ' + kavels(L) + '.');
   else p.push('Op basis van de prijs per m² kavel licht ik de ' + L.length + ' beste deals voor u uit: ' + kavels(L) + '.');
   const water = L.filter(k => info[k].water), centraal = L.filter(k => info[k].centraal), rustig = L.filter(k => info[k].rustig), groot = L.filter(k => info[k].personen >= 8);
   const zin = [];
