@@ -728,7 +728,7 @@ const eigenModus = () => $('f-eigen').checked;
 let lgTeksten = null;
 function legendaTeksten() {
   if (!lgTeksten) lgTeksten = [...svg.querySelectorAll('text')].filter(t => /^Past (niet )?bij de wensen$/.test(t.textContent));
-  lgTeksten.forEach(t => { const org = t.dataset.org || (t.dataset.org = t.textContent); t.textContent = !eigenModus() ? org : /niet/.test(org) ? 'Niet gekozen' : 'Gekozen door makelaar'; });
+  lgTeksten.forEach(t => { const org = t.dataset.org || (t.dataset.org = t.textContent); t.textContent = /niet/.test(org) ? (eigenModus() ? 'Niet gekozen' : 'Niet in de top 3') : (eigenModus() ? 'Gekozen door makelaar' : 'Top 3 voor de klant'); });
 }
 function wisselKeuze(k) {
   const st = state[k] || 'beschikbaar';
@@ -753,14 +753,17 @@ function applyFilter() {
   $('v-pers').textContent = f.pers <= 2 ? "Alle villa's" : 'minimaal ' + f.pers;
   $('v-lig').textContent = ['Bij de voorzieningen','Maakt niet uit','Rustig gelegen'][f.lig];
   svg.classList.toggle('filtering', on);
-  const matches = [];
+  const kand = [];
   for (const k in lotEls) {
     const l = info[k], s = state[k] || 'beschikbaar';
     const ok = eigenModus() ? (gekozen.has(k) && s !== 'verkocht') : on && s === 'beschikbaar' && l.personen >= f.pers
       && (f.budget >= 550000 || (budgetSet && budgetSet.has(k)))
       && (f.lig !== 0 || l.centraal) && (f.lig !== 2 || l.rustig) && (!f.water || l.water);
-    lotEls[k].classList.toggle('match', ok); if (ok) matches.push(k);
+    if (ok) kand.push(k);
   }
+  const matches = topLijst(kand, on);
+  laatsteKand = kand; laatsteTop = on ? matches : topLijst(Object.keys(lotEls).filter(k => (state[k] || 'beschikbaar') === 'beschikbaar'), true);
+  for (const k in lotEls) lotEls[k].classList.toggle('match', matches.includes(k));
   svg.getElementById('lg-match').setAttribute('display', on ? 'inline' : 'none');
   layoutLegend(on);
   svg.getElementById('n-match').textContent = matches.length;
@@ -770,11 +773,27 @@ function applyFilter() {
   if (on && eigenModus()) $('result').innerHTML = matches.length
     ? '<b>' + matches.length + (matches.length === 1 ? ' villa gekozen' : ' villa\'s gekozen') + '</b>, blauw omlijnd: ' + matches.join(', ') + '. Tik nog eens om weg te halen.'
     : 'Tik op de kaart de villa\'s aan die u voor deze klant wilt voorstellen.';
-  else if (on) $('result').innerHTML = matches.length
-    ? '<b>' + matches.length + (matches.length === 1 ? ' woning past' : ' woningen passen') + '</b>, blauw omlijnd: ' + matches.join(', ')
-    : 'Geen beschikbare woning past bij deze wensen. Verruim het budget of de ligging.';
+  else if (on) $('result').innerHTML = !kand.length
+    ? 'Geen beschikbare villa past bij deze wensen. Verruim het budget of de ligging.'
+    : !matches.length ? 'De beste deals worden berekend…'
+    : '<b>' + kand.length + (kand.length === 1 ? ' villa past' : ' villa\'s passen') + '</b> bij de wensen. ' + (kand.length > matches.length ? 'De ' + matches.length + ' beste deals (laagste prijs per m² kavel) zijn blauw omlijnd: ' : 'Blauw omlijnd, op volgorde van prijs per m² kavel: ') + matches.join(', ') + '.'
   if (on && showDeal() && deal && matches.includes(deal)) $('result').innerHTML += '<br>Beste deal binnen deze selectie (laagste prijs per m² kavel): <b style="color:#39ff14">kavel ' + deal + '</b>, groen.';
-  clearTimeout(dealTimer); dealTimer = setTimeout(() => updateDeal(on ? matches : null), 200);
+  clearTimeout(dealTimer); dealTimer = setTimeout(() => updateDeal(on ? (eigenModus() ? matches : matches.slice(0, 1)) : null), 200);
+}
+
+// ---- top 3: van de passende kavels de 3 met de laagste koopsom per m2 kavel (berekend in de database) ----
+const TOP_N = 3; const topCache = {}; let topTimer = null, laatsteKand = [], laatsteTop = [];
+function topLijst(kand, on) {
+  if (!on || eigenModus() || !kand.length) return on ? kand : [];
+  const sig = Object.keys(state).filter(k => state[k] !== 'beschikbaar').sort().join(',');
+  const key = kand.join(',') + '|' + sig;
+  if (key in topCache) return topCache[key];
+  clearTimeout(topTimer);
+  topTimer = setTimeout(async () => {
+    try { const r = await api('/rpc/kavelkaart_top_deals', { method:'POST', body: JSON.stringify({ p_kaart:KAART, p_kavels:kand.map(Number), p_n:TOP_N }) }); topCache[key] = (r || []).map(String); applyFilter(); }
+    catch (e) {}
+  }, 150);
+  return [];
 }
 
 // ---- beste deal: laagste koopsom per m2 kavel, berekend in de database (prijzen komen nooit in de pagina) ----
@@ -841,7 +860,7 @@ const GEBRUIK_TXT = { eigen:'Eigen gebruik', verhuur:'Verhuur', beide:'Eigen geb
 function selectie() {
   const f = filterVals(), on = filtering();
   const vrij = Object.keys(lotEls).filter(k => (state[k] || 'beschikbaar') === 'beschikbaar');
-  const lijst = on ? Object.keys(lotEls).filter(k => lotEls[k].classList.contains('match')) : vrij;
+  const lijst = eigenModus() ? Object.keys(lotEls).filter(k => lotEls[k].classList.contains('match')) : laatsteTop.slice();
   const wensen = [];
   if (f.pers > 2) wensen.push('plek voor minimaal ' + f.pers + ' personen');
   if (f.budget < 550000) wensen.push('een koopsom tot ' + euro(f.budget) + (f.inv ? ' inclusief inventaris' : ''));
@@ -851,7 +870,7 @@ function selectie() {
   const d = showDeal() && deal && lijst.includes(deal) ? deal : null;
   const keuze = $('a-top') ? $('a-top').value : '';
   const top = keuze && lijst.includes(keuze) ? keuze : null;
-  return { f, on, lijst: top ? [top, ...lijst.filter(k => k !== top)] : lijst, wensen: eigenModus() ? [] : wensen, deal: d, eigen: eigenModus(), top };
+  return { f, on, lijst: top ? [top, ...lijst.filter(k => k !== top)] : lijst, wensen: eigenModus() ? [] : wensen, deal: d, eigen: eigenModus(), top, aantal: on ? laatsteKand.length : vrij.length };
 }
 function kenmerken(k) {
   const l = info[k], t = [l.personen + '-persoons', UIT[l.type]];
@@ -875,7 +894,8 @@ function bouwTekst() {
     : 'Bedankt voor het prettige gesprek. Op de kaart van Fase 1 ziet u welke villa\'s op dit moment nog beschikbaar zijn.');
   if (!L.length) p.push('Op dit moment is er geen beschikbare villa die precies aan al uw wensen voldoet. Ik kijk graag met u welke wens we iets kunnen verruimen, zodat er weer mooie opties in beeld komen.');
   else if (s.eigen) p.push(L.length === 1 ? 'Op de kaart is deze villa blauw omlijnd: kavel ' + L[0] + '.' : 'Het gaat om ' + L.length + ' villa\'s, blauw omlijnd op de kaart: ' + kavels(L.slice().sort()) + '.');
-  else if (s.on) p.push('Op dit moment ' + (L.length === 1 ? 'is er 1 villa' : 'zijn er ' + L.length + ' villa\'s') + ' beschikbaar die daaraan voldoe' + (L.length === 1 ? 't' : 'n') + '. Op de kaart zijn ze blauw omlijnd: ' + kavels(L) + '.');
+  else if (s.on) p.push('Op dit moment ' + (s.aantal === 1 ? 'is er 1 villa beschikbaar die daaraan voldoet' : 'zijn er ' + s.aantal + ' villa\'s beschikbaar die daaraan voldoen') + '. ' + (s.aantal > L.length ? 'Daaruit heb ik de ' + L.length + ' met de beste prijs per m² kavel voor u geselecteerd. Op de kaart zijn ze blauw omlijnd: ' : 'Op de kaart zijn ze blauw omlijnd: ') + kavels(L) + '.');
+  else p.push('Op basis van de prijs per m² kavel licht ik de ' + L.length + ' beste deals voor u uit: ' + kavels(L) + '.');
   const water = L.filter(k => info[k].water), centraal = L.filter(k => info[k].centraal), rustig = L.filter(k => info[k].rustig), groot = L.filter(k => info[k].personen >= 8);
   const zin = [];
   if (g === 'verhuur') {
@@ -904,7 +924,7 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 function samenvatting() {
   const s = selectie();
   vulTop();
-  $('a-summary').textContent = s.eigen ? (s.lijst.length ? s.lijst.length + ' zelf gekozen villa\'s: ' + s.lijst.slice().sort().join(', ') : 'Nog geen villa\'s gekozen. Tik ze aan op de kaart.') + (s.deal ? ' · beste deal: kavel ' + s.deal : '') : (s.on ? s.lijst.length + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: alle ' + s.lijst.length + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
+  $('a-summary').textContent = s.eigen ? (s.lijst.length ? s.lijst.length + ' zelf gekozen villa\'s: ' + s.lijst.slice().sort().join(', ') : 'Nog geen villa\'s gekozen. Tik ze aan op de kaart.') + (s.deal ? ' · beste deal: kavel ' + s.deal : '') : (s.on ? 'top ' + s.lijst.length + ' van ' + s.aantal + ' passende villa\'s' + (s.lijst.length ? ': ' + s.lijst.join(', ') : '') : 'Geen wensen ingesteld: de ' + s.lijst.length + ' beste deals van alle ' + s.aantal + ' beschikbare villa\'s') + (s.deal ? ' · beste deal: kavel ' + s.deal : '');
 }
 function vulTop() {
   const sel = $('a-top'), oud = sel.value;
@@ -1109,7 +1129,7 @@ async function maakPdf() {
     if (i % 2 === 0) {
       doc.addPage(); y = 52;
       doc.setTextColor(93, 107, 103); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-      doc.text((s.eigen ? 'GESELECTEERD VOOR U' : s.on ? 'PASSENDE VILLA\'S' : 'BESCHIKBARE VILLA\'S') + (kaarten.length > 2 ? '  ·  ' + (i / 2 + 1) + ' / ' + Math.ceil(kaarten.length / 2) : ''), M, 40);
+      doc.text((s.eigen ? 'GESELECTEERD VOOR U' : 'DE BESTE DEALS VOOR U') + (kaarten.length > 2 ? '  ·  ' + (i / 2 + 1) + ' / ' + Math.ceil(kaarten.length / 2) : ''), M, 40);
     }
     y += await villaKaart(doc, kaarten[i], y, kaarten[i] === s.deal, M, W, kaarten[i] === s.top) + 22;
   }
